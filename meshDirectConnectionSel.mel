@@ -1,0 +1,158 @@
+global proc meshDirectConnection()
+{
+	
+	string $mesh1 = "pPlane1" ;
+	string $mesh2 = "pPlane2";
+	
+	int $verts = `polyEvaluate -v $mesh1`;
+	string $mesh1Shape = gettingShapes($mesh1);
+    
+    for ($d in $mesh2)
+    {
+        //string $destDeformers[] = deformersHistrory($d);
+        //string $destDeformers[] = "";
+        if(size($destDeformers)==0)
+        {
+            string $blend = `blendShape -w 0 1 $mesh2 $mesh1`;
+             
+        }
+    }
+
+    string $type = "simpleBlendshape";
+    //string $test[] =   `blendShape -w 0 1 $mesh1 $mesh2` 
+    //string $simpleBS = simpleBlendshape({$mesh1,$mesh2});
+
+
+	
+}
+
+//string $blend = simpleBlendshape($mesh1,$mesh2)
+
+global proc string simpleBlendshape(string $sel[])
+{
+    //string $type = "onlyEnvelope";
+    //string $simpleBS = bs_deformerCreation($sel); 
+    //string $simpleBS =stringFirst(bs_deformerCreation("rig_simpleBlendshape_tfNme",$type));
+
+
+
+    if(size($sel)!=2)
+    {
+        error ("Select two objects for deforming");
+    }
+    else
+    {
+        select -r $sel[1];
+        string $simpleblend[] =`deformer -type onlyEnvelope`;
+    /*
+        if (size(`listRelatives -s -type mesh $sel[0]`))
+        {
+            connectAttr -f ($sel[0]+".worldMesh[0]") ($simpleblend[0]+".geometryObject");
+
+        }*/
+        return $simpleblend[0];
+        
+    }
+} 
+
+global proc string stringFirst(string $array[])
+{
+    return $array[0];
+} 
+
+global proc string[] bs_deformerCreation(string $node,string $defType[])
+{
+    string $defTypeNames[];
+    string $allDeformers[] = ls("-type","geometryFilter",`listHistory -bf -il 1 -gl 1 -pdo 1 $node`);
+
+    for($i=0;$i<size($allDeformers);$i++)
+    {
+        if(`attributeExists "envelope" $allDeformers[$i]`)
+        {
+            for ($j=0;$j<size($defType);$j++)
+            if(`nodeType  $allDeformers[$i]` == $defType[$j])
+            {
+                $defTypeNames[$j] = $allDeformers[$i];
+            }  
+        }
+    }
+    return $defTypeNames;
+} 
+
+
+global proc string[] deformersHistrory(string $node)
+{
+    string $shape = $node;
+    if (!`objExists $shape`)
+        $shape = $node;
+
+    string $history[];
+    $history =`listHistory -gl false -pdo 1 -lf false -f 0 -il 1 $shape`;
+    // TODO: remove duplicate deformer name 
+
+    string $deformers[] = {};
+    $history[size($history)] = $shape;
+
+
+}
+
+global proc string[] gettingShapes(string $object)
+{
+	
+	if (!`objExists $object`)
+	{
+		warning ($object + "is not having any shapes select correct mesh.")
+	}
+	
+    
+	$object = `match "^[^\.]*" $object`; // so we can do components also.
+    // TODO: if just a set exception handle 
+
+    string $shapes[] =`listRelatives -s -f $object`; // -s returns shape -f returns the full path name 
+    string $transform[];
+    string $object_long[];
+    string $shapes_check;
+    string $shapes_confirmed[];
+
+    if ($size($shapes)==0)
+    {
+        // if object is transform , then not a shape ,skip 
+        if (`nodeType $object` == "transforms") 
+        return {};
+
+        // so this case for parent is not a transform , so try to determine this generally 
+        $transform = `listRelatives -p -f $object`;
+
+        // TODO: most likely not a shape cause shapes always have parents 
+        
+        if (size($transform)==0)
+        return {};
+
+        // if transform is there for the source object but is it a shape 
+        $shapes_check = `listRelatives -s -f $transform`;
+        string $shape_check;
+        for($shape_check in $shapes_check)
+        {
+            if ($shape_check==$object)
+            $shapes_confirmed =$shapes_check;
+        }
+
+    }
+    else 
+    $shapes_confirmed =$shapes;
+
+    string $shapes_confirmed_final[];
+    string $shape_test;
+
+    for($shape_test in $shapes_confirmed_final)
+    {
+        if(`attributeQuery -ex -n $shape_test "intermediteObject"`)
+        {
+            if(`getAttr($shape_test+".intermediateObject")`==1)
+                continue ;
+        }
+        $shapes_confirmed_final[size($shapes_confirmed_final)] = $shape_test;
+    }
+    return $shapes_confirmed_final;
+}
+

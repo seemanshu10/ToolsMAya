@@ -1,0 +1,305 @@
+/*
+string $sel[] = `ls -sl`;
+for($s in $sel)
+{
+	skinRebind($s);
+}
+*/
+
+
+
+
+
+/// gui creation 
+
+global proc skinGUI()
+{
+	// Make a new window
+	//
+	string $window ="skinUI";
+	if ( `window -exists $window` ) { deleteUI $window; }
+	$window = `window -resizeToFitChildren 1 -w 300 -title $window`;
+	
+		columnLayout -adjustableColumn 1;
+		//paneLayout;
+		button -l "skinCopyFromOneToMany" -bgc 1 0 0 ;
+		button -l "skinCopyFromManyToOne" -bgc 1 0 0 ;
+		button -l "Mirror Skin" -c "skinMirrorMesh" -bgc 0 1 0 mirrBtn;
+		button -l "addingInfluenceJoint" -c "addInfluenceJoint" -bgc 1 1 0 addInfluenceBtn;
+		button -l "SkinRebind" -c "inputGiving";
+	showWindow $window;
+			
+}
+
+global proc skinInfoCopy()
+{
+	string $all[] = `ls -sl`;
+	int $size = size($all);
+	int $i=1;
+	if($size>1)
+	for($i=1;$i<$size;++$i)
+	{
+		skinCopyWeightsMaya($all[0],$all[$i]);
+	}
+	select -r $all;
+}
+/*
+global proc string skinCopyWeightsMaya(string $objectA,string $objectB)
+{
+	print ("objectA:"+$objectA+"\n");
+	print ("objectB:"+$objectB+"\n");
+	
+	string $all[]=`ls -sl`;
+	// get information 
+	string $a_skinCluster=skinGetClusters($objectA);
+	string $a_infs[]=skinGetInFluences($objectA);
+	
+	//if objectB already has a skinCluster 
+	string $b_skinClusterOrig =skinGetClusters($objectB);
+	string $preDeformers[]={};
+	if($b_skinClusterOrig!="")
+	{
+		string $history = `listHistory $objectB`;
+		int $cont=1;
+		for ($node in $history)
+		{
+			string $types = `nodeType -inherited $node`;
+			if($node==b_skinClusterOrig) $cont=0;
+		}
+	} 
+	
+}
+
+
+*/
+////////////////////////////////////////////////////////////////////
+///// 					mirror skin                         ////////
+////////////////////////////////////////////////////////////////////
+global proc skinMirrorMesh()
+{
+	string $ob[1] = `ls -sl`;
+	string $hist[1] = `listHistory $ob[0]`;
+	string $scn[1] = `ls -typ "skinCluster" ($hist)`;
+	
+	//doMirrorSkinWeightsArgList(2,{"-mirrorMode YZ -surfaceAssociation closesPoint -influenceAssociation oneToOne"});
+	
+	copySkinWeights -ss $scn[0] -ds $scn[0] -mirrorMode YZ -surfaceAssociation closestPoint -influenceAssociation oneToOne;
+	print "Skin mirrored successfully";
+	
+}
+
+//////////////////////////////////////////////////////////////////
+////////////												 /////
+/////////////		adding influence in meshSkin 			 /////
+//////////////////////////////////////////////////////////////////
+ 
+global proc addInfluenceJoint()
+{
+	string $ob[1] = `ls -sl`;
+	string $hist[1] = `listHistory $ob[0]`;
+	string $scn[1] = `ls -typ "skinCluster" ($hist)`;
+	string $infjnt[] = `skinCluster -q -inf $scn[0]`;
+	
+	int $jntSize  = size($infjnt);
+	int $x;
+	for($x=0;$x<=($jntSize-1);$x++)
+	{
+		select -r $infjnt[$x];
+		string $slJnt[1] =`ls -sl`;
+		int $LTside =`startsWith $infjnt[$x] "l_"`;
+		int $RTside =`startsWith $infjnt[$x] "r_"`;
+		
+		if($LTside==1)
+		{
+			string $namChk = `substitute "l_" $slJnt[0] "r_"`;
+			select -r $namChk;
+			select -add $ob[0];
+			
+			skinClusterInfluence 1 "-lw true -wt 0";
+		}
+		
+		if($RTside==1)
+		{
+			string $namChk=`substitute "r_" $slJnt[0] "l_"`;
+			select -r $namChk;
+			select -add $ob[0];
+			skinClusterInfluence 1 "-lw true -wt 0";
+			
+		}
+		else 
+		{
+			confirmWin;
+		} 
+	}
+	select -r $ob;
+}
+
+
+//passing the input to themain procedure 
+global proc inputGiving()
+{
+	string $sel[] = `ls -sl`;
+	for($s in $sel)
+	{
+		skinRebind($s);
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////
+////
+////            main procedure of skin rebind                                          
+/////////////////////////////////////////////////////////////////////////////////////
+
+global proc skinRebind(string $object)
+{
+	string $skinCluster="";
+	if(`nodeType $object` =="skinCluster")
+		$skinCluster = $object;
+	else
+		$skinCluster= skinGetCluster($object);
+		
+	string $influences[] = skinGetInFluences($skinCluster);	
+	if(`objExists $skinCluster`)
+	{
+		skinCluster -e -ubk $skinCluster;
+		string $deformedGeo[]= `skinCluster -q -g $skinCluster`;
+		skinCluster -tsb $influences $deformedGeo[0];
+		
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////
+////
+////    skinGetCluster 
+////
+////    - Gets skinCluster. Objects can be component 
+//////////////////////////////////////////////////////////////////////////
+
+global proc string[] skinGetClusters(string $objects[])
+{
+    string $clusters[];
+    int $i=0;
+    int $size = size($objects);
+    for($i=0;$i<$size;++$i)
+    {
+        $clusters[$i]=skinGetCluster($objects[$i]);
+    }
+    return $clusters;
+}      
+
+///////////////////////////////////////////////////////////////////////////
+////
+////    skinGetInFluences 
+//// 
+////  -Gets list of influences. Object can be component 
+///////////////////////////////////////////////////////////////////////////
+
+global proc string[] skinGetInFluences(string $object)
+{
+    if(`objExists $object`)
+    {
+        string $skinCluster;
+        if(`nodeType $object`== "skinCluster") $skinCluster = $object;
+        else  $skinCluster = skinGetCluster($object);
+
+        if(`objExists $skinCluster`)
+        {
+            string $infs[] = `listConnections -s 1 ($skinCluster+".matrix")`;
+            return $infs;
+        }
+        return {};
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////
+////
+////        skinGetCluster
+////
+//// - gets skinGetCluster. Object can be component 
+//////////////////////////////////////////////////////////////////////////
+
+global proc string skinGetCluster(string $object)
+{
+	string $toke[];
+	string $history[];
+	
+	string $shape=`getShape $object`;
+	if($shape=="") $shape=`match "^[^.]*" $object`;
+	$history = `listHistory -pruneDagObjects 1 -lf 1 $shape`;
+	$history= `ls -type "skinCluster" $history`;
+	
+	return $history[0]; 
+}
+
+
+////////////////////////////////////////////////////////////////////
+////
+//// getShape
+////
+////    - getShape 
+////////////////////////////////////////////////////////////////////
+global proc string getShape(string $object)
+{
+    string $shapes[] = gettingShapes($object);
+    return $shapes[0];
+}
+
+
+global proc string[] gettingShapes(string $object)
+{
+	if (!`objExists $object`)
+	{
+		warning ($object + "is not having any shapes select correct mesh.");
+	}	
+    $object = $object;
+	$object = `match "^[^\.]*" $object`; // so we can do components also.
+    // TODO: if just a set exception handle 
+    if(`nodeType $object`=="objectSet") return {}; // you are just a set 
+
+    string $shapes[] =`listRelatives -s -f $object`; // -s returns shape -f returns the full path name 
+    string $transform[];
+    string $object_long[];
+    string $shapes_check[];
+    string $shape_check;
+
+    string $shapes_confirmed[];
+
+    if (size($shapes)==0)
+    {
+        // if object is transform , then not a shape ,skip 
+        if (`nodeType $object` == "transform") return {};
+
+        // so this case for parent is not a transform , so try to determine this generally 
+        $transform = `listRelatives -p -f $object`;
+
+        // TODO: most likely not a shape cause shapes always have parents 
+        if (size($transform)==0) return {};
+
+        // if transform is there for the source object but is it a shape 
+        $shapes_check = `listRelatives -s -f $transform`;
+        print $shapes_check;
+        string $shape_check;
+        for($shape_check in $shapes_check)
+        {
+            if ($shape_check==$object) $shapes_confirmed =$shapes_check;
+        }
+    }
+    else 
+    $shapes_confirmed =$shapes;
+
+    string $shapes_confirmed_final[];
+    string $shape_test;
+
+    for($shape_test in $shapes_confirmed)
+    {
+        if(`attributeQuery -ex -n $shape_test "intermediteObject"`)
+        {
+            if(`getAttr($shape_test+".intermediateObject")`==1) continue;
+        }
+        $shapes_confirmed_final[size($shapes_confirmed_final)] = $shape_test;
+    }
+    print $shapes_confirmed_final;
+    return $shapes_confirmed_final;
+    
+}
+

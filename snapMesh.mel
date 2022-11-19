@@ -1,0 +1,54 @@
+global proc snapToMesh(string $list[], string $mesh)
+{
+    $list = `ls -fl $list`;
+    string $cp =`createNode -n "tempClosestPointOnMesh" closestPointOnMesh`;
+    print "$cp\n";
+
+    float $pos[];
+    float $npos[];
+
+    connectAttr -f ($mesh+".worldMesh")($cp+".inMesh");
+    //loopThrough the objects and find closest point on mesh  
+    for ($l in $list)
+    {
+        
+        if (`objExists($l+".rotatePivot")`)
+            $pos=`xform -q -ws -rp $l`;
+            print ($pos+"\n");
+        else 
+            $pos =`xform -q -ws -t $l`;
+        
+        //set in position 
+        setAttr ($cp+".ipx") $pos[0];
+        setAttr ($cp+".ipy") $pos[1];
+        setAttr ($cp+".ipz") $pos[2];
+
+        //get new position 
+        $npos = `getAttr ($cp+".p")`;
+
+        //set newPos 
+        // move transforms 
+        xform -r -ws -t ($npos[0] -$pos[0])($npos[1]-$pos[1])($npos[2]-$pos[2]) $l;
+        
+    }
+    delete $cp;
+
+}
+
+
+global proc string closestVertexToPoint(string $mesh,float $posIn[])
+{
+    string $cp =`createNode -n "tempClosestPointOnMesh" closestPointOnMesh`;
+    print "$cp\n";
+    connectAttr -f ($mesh+".worldMesh")($cp+".inMesh");
+    setAttr ($cp+".ipx") $posIn[0];
+    setAttr ($cp+".ipy") $posIn[1];
+    setAttr ($cp+".ipz") $posIn[2];
+
+    int $index = `getAttr ($cp+".closesVertexIndex")`;
+    //delete $cp;
+    string $vert = ($mesh+".vtx["+$index+"]");
+    
+    return $vert;
+}
+
